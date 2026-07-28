@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: bamzy_container
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5445:5432"
+    volumes:
+      - bamzyData:/var/lib/postgresql/data
+    networks:
+      - bamzy-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bamzy_admin -d bamzy_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  bamzy-app:
+    build: .
+    container_name: bamzy_app_container
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_URL=${DB_URL}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bamzy-net
+
+volumes:
+  bamzyData:
+
+networks:
+  bamzy-net:
+    driver: bridge

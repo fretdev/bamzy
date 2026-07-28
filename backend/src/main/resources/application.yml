@@ -1,0 +1,27 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: bamzy
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5445/bamzy_db
+  flyway:
+    enabled: true
+
+server:
+  port: 8081
