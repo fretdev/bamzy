@@ -5,7 +5,7 @@ import com.fretdev.bamzy.user.UserStatus;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record ResponseDto(
+public record UserResponse(
         UUID publicId,
         String username,
         String email,

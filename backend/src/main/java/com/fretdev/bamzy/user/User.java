@@ -20,6 +20,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Builder.Default
     @Column(name = "public_id",nullable = false,updatable = false)
     private UUID publicId = UUID.randomUUID();
 
@@ -29,9 +30,10 @@ public class User {
     @Column(unique = true,name = "email",nullable = false)
     private String email;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private UserStatus status;
+    private UserStatus status = UserStatus.OFFLINE;
 
     @Column(name = "password")
     private String password;
@@ -52,6 +54,9 @@ public class User {
         this.updatedAt = LocalDateTime.now();
         if (this.publicId == null) {
             this.publicId = UUID.randomUUID();
+        }
+        if (this.status == null){
+            this.status = UserStatus.OFFLINE;
         }
     }
 
