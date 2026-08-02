@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+console.log("API_URL is:", API_URL);
 
 interface RequestOptions extends RequestInit {
     token?: string;
