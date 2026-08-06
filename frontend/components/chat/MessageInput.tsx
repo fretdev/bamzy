@@ -45,6 +45,7 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
     const inputRef = useRef<HTMLInputElement>(null);
     const pickerRef = useRef<HTMLDivElement>(null);
     const isTypingRef = useRef(false);
+    const lastTypingSignalRef = useRef<number>(0);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Close emoji picker when clicking outside
@@ -67,16 +68,22 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
         setContent(val);
 
         if (onTyping) {
-            if (!isTypingRef.current && val.trim().length > 0) {
+            const now = Date.now();
+            // Re-arm typing signal every 1.5s while user continues typing
+            if (val.trim().length > 0 && (now - lastTypingSignalRef.current > 1500 || !isTypingRef.current)) {
                 isTypingRef.current = true;
+                lastTypingSignalRef.current = now;
                 onTyping(true);
+            } else if (val.trim().length === 0 && isTypingRef.current) {
+                isTypingRef.current = false;
+                onTyping(false);
             }
 
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = setTimeout(() => {
                 isTypingRef.current = false;
                 onTyping(false);
-            }, 2500);
+            }, 3000);
         }
     }, [onTyping]);
 
