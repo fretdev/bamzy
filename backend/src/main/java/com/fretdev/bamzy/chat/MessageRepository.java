@@ -6,8 +6,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
-public interface MessageRepository extends JpaRepository<Message,Long> {
+public interface MessageRepository extends JpaRepository<Message, Long> {
+
+    Optional<Message> findByPublicId(String publicId);
 
     @Query("""
         SELECT m FROM Message m
@@ -18,8 +21,8 @@ public interface MessageRepository extends JpaRepository<Message,Long> {
         ORDER BY m.createdAt DESC
     """)
     List<Message> findConversation(
-            @Param("userAId")Long userAId,
-            @Param("userBId")Long userBId,
+            @Param("userAId") Long userAId,
+            @Param("userBId") Long userBId,
             Pageable pageable
     );
 }

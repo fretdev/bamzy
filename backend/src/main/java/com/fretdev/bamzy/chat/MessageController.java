@@ -17,11 +17,21 @@ public class MessageController {
     @GetMapping("/history/{otherUsername}")
     public ResponseEntity<List<MessageResponse>> getHistory(
             @PathVariable String otherUsername,
-            @RequestParam(defaultValue = "50")int limit,
+            @RequestParam(defaultValue = "50") int limit,
             Authentication authentication
     ){
-        String currentUsrname = authentication.getName();
-        List<MessageResponse> messages = messageService.getConversation(currentUsrname,otherUsername,limit);
+        String currentUsername = authentication.getName();
+        List<MessageResponse> messages = messageService.getConversation(currentUsername, otherUsername, limit);
         return ResponseEntity.ok(messages);
+    }
+
+    @DeleteMapping("/{publicId}")
+    public ResponseEntity<Void> deleteMessage(
+            @PathVariable String publicId,
+            Authentication authentication
+    ) {
+        String currentUsername = authentication.getName();
+        messageService.deleteMessage(publicId, currentUsername);
+        return ResponseEntity.noContent().build();
     }
 }

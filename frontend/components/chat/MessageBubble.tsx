@@ -10,6 +10,7 @@ interface MessageBubbleProps {
     currentUsername: string;
     reaction?: string;
     onReact?: (messageId: string, emoji: string) => void;
+    onDelete?: (messageId: string) => void;
 }
 
 const REACTION_OPTIONS = ['❤️', '🌸', '😂', '👍', '✨'];
@@ -19,12 +20,14 @@ export const MessageBubble = memo(function MessageBubble({
     currentUsername,
     reaction,
     onReact,
+    onDelete,
 }: MessageBubbleProps) {
     const [localReaction, setLocalReaction] = useState<string | null>(() => {
         if (typeof window === 'undefined') return null;
         return localStorage.getItem(`bamzy:reaction:${message.publicId}`);
     });
     const [showReactions, setShowReactions] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const reactionBoxRef = useRef<HTMLDivElement>(null);
 
@@ -37,20 +40,21 @@ export const MessageBubble = memo(function MessageBubble({
 
     const isScripted = message.senderUsername === 'Bamzy' || message.senderUsername === 'BamzyBot';
 
-    // Close reaction popover when clicking outside
+    // Close popovers when clicking outside
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
             if (reactionBoxRef.current && !reactionBoxRef.current.contains(e.target as Node)) {
                 setShowReactions(false);
+                setShowDeleteConfirm(false);
             }
         }
-        if (showReactions) {
+        if (showReactions || showDeleteConfirm) {
             document.addEventListener('mousedown', handleClickOutside);
         }
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showReactions]);
+    }, [showReactions, showDeleteConfirm]);
 
     function handleSelectReaction(emoji: string) {
         const next = activeReaction === emoji ? '' : emoji;
@@ -70,8 +74,15 @@ export const MessageBubble = memo(function MessageBubble({
         }
     }
 
-    // Hide dummy legacy reaction messages if any exist
-    if (message.content.startsWith('[REACTION:')) {
+    function handleDeleteConfirm() {
+        setShowDeleteConfirm(false);
+        if (onDelete) {
+            onDelete(message.publicId);
+        }
+    }
+
+    // Hide dummy legacy reaction or delete messages
+    if (message.content.startsWith('[REACTION:') || message.content.startsWith('[DELETE:') || message.content.startsWith('[TYPING:')) {
         return null;
     }
 
@@ -120,21 +131,67 @@ export const MessageBubble = memo(function MessageBubble({
                     )}
                 </AnimatePresence>
 
-                {/* Container holding Bubble + Reaction trigger icon */}
-                <div className="flex items-center gap-1.5 group">
-                    {/* Reaction Trigger Icon for Sent Messages */}
-                    {isMine && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowReactions((prev) => !prev);
-                            }}
-                            className="opacity-75 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
-                            title="Add reaction"
+                {/* Delete Confirmation Popover */}
+                <AnimatePresence>
+                    {showDeleteConfirm && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.85 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.85 }}
+                            transition={{ duration: 0.12 }}
+                            className={`absolute ${isMine ? 'right-0' : 'left-0'} -top-10 z-40 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-rose-950/95 backdrop-blur-2xl border border-rose-300/40 shadow-2xl text-white text-xs`}
                         >
-                            😊
-                        </button>
+                            <span className="font-bold">Delete message?</span>
+                            <button
+                                type="button"
+                                onClick={handleDeleteConfirm}
+                                className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 font-extrabold text-[11px]"
+                            >
+                                Delete
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="px-2 py-0.5 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-[11px]"
+                            >
+                                Cancel
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Container holding Bubble + Action trigger icons */}
+                <div className="flex items-center gap-1.5 group">
+                    {/* Trigger Action Buttons for Sent Messages (Reaction + Delete) */}
+                    {isMine && (
+                        <div className="opacity-75 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowReactions((prev) => !prev);
+                                    setShowDeleteConfirm(false);
+                                }}
+                                className="p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
+                                title="Add reaction"
+                            >
+                                😊
+                            </button>
+                            {!isScripted && onDelete && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDeleteConfirm((prev) => !prev);
+                                        setShowReactions(false);
+                                    }}
+                                    className="p-1 text-xs text-rose-200 hover:text-rose-400 bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
+                                    title="Delete message"
+                                >
+                                    🗑️
+                                </button>
+                            )}
+                        </div>
                     )}
 
                     {/* Message Bubble Body */}
@@ -179,19 +236,36 @@ export const MessageBubble = memo(function MessageBubble({
                         </div>
                     </div>
 
-                    {/* Reaction Trigger Icon for Received Messages */}
+                    {/* Trigger Action Buttons for Received Messages */}
                     {!isMine && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowReactions((prev) => !prev);
-                            }}
-                            className="opacity-75 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
-                            title="Add reaction"
-                        >
-                            😊
-                        </button>
+                        <div className="opacity-75 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowReactions((prev) => !prev);
+                                    setShowDeleteConfirm(false);
+                                }}
+                                className="p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
+                                title="Add reaction"
+                            >
+                                😊
+                            </button>
+                            {onDelete && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDeleteConfirm((prev) => !prev);
+                                        setShowReactions(false);
+                                    }}
+                                    className="p-1 text-xs text-rose-200 hover:text-rose-400 bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
+                                    title="Delete message"
+                                >
+                                    🗑️
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

@@ -76,6 +76,8 @@ export function ChatExperience() {
     const [connected, setConnected] = useState(false);
     const [partnerIsTyping, setPartnerIsTyping] = useState(false);
 
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const [showingIntro, setShowingIntro] = useState(() => {
         if (typeof window === 'undefined' || !userId) return false;
         const justSignedUp = sessionStorage.getItem('bamzy:justSignedUp') === 'true';
@@ -117,7 +119,7 @@ export function ChatExperience() {
         return () => clearInterval(interval);
     }, [refreshUserDirectory]);
 
-    // Sync Conversation History Function with Automatic Retry
+    // Sync Conversation History Function
     const syncConversation = useCallback(async (targetPartner: string) => {
         if (!accessToken || !username || !targetPartner) return;
 
@@ -147,7 +149,7 @@ export function ChatExperience() {
                 accessToken
             );
 
-            // Process history messages & extract any saved reaction payloads
+            // Process history messages & extract saved reaction payloads
             const cleanHistory: MessageResponse[] = [];
             if (Array.isArray(history)) {
                 history.forEach((m) => {
@@ -158,7 +160,7 @@ export function ChatExperience() {
                             const emoji = match[2];
                             setReactionsMap((prev) => ({ ...prev, [targetId]: emoji }));
                         }
-                    } else {
+                    } else if (!m.content.startsWith('[TYPING:') && !m.content.startsWith('[DELETE:')) {
                         cleanHistory.push(m);
                         const partner = m.senderUsername === username ? m.receiverUsername : m.senderUsername;
                         if (partner && partner.trim().toLowerCase() !== username?.trim().toLowerCase()) {
@@ -208,6 +210,31 @@ export function ChatExperience() {
                                 return;
                             }
 
+                            // Intercept real-time delete STOMP events
+                            if (newMessage.content.startsWith('[DELETE:')) {
+                                const match = newMessage.content.match(/^\[DELETE:(.+?)\]$/);
+                                if (match) {
+                                    const targetId = match[1];
+                                    setMessages((prev) => prev.filter((m) => m.publicId !== targetId));
+                                }
+                                return;
+                            }
+
+                            // Intercept real-time live typing STOMP events
+                            if (newMessage.content.startsWith('[TYPING:')) {
+                                if (newMessage.content === '[TYPING:START]') {
+                                    setPartnerIsTyping(true);
+                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                    typingTimeoutRef.current = setTimeout(() => {
+                                        setPartnerIsTyping(false);
+                                    }, 3500);
+                                } else if (newMessage.content === '[TYPING:STOP]') {
+                                    setPartnerIsTyping(false);
+                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                }
+                                return;
+                            }
+
                             setMessages((prev) => {
                                 if (prev.some((m) => m.publicId === newMessage.publicId)) {
                                     return prev;
@@ -244,7 +271,7 @@ export function ChatExperience() {
         };
     }, [accessToken, username, otherUsername, syncConversation]);
 
-    // Network Reconnect & Online Window Focus Listener
+    // Network Reconnect Listener
     useEffect(() => {
         function handleOnline() {
             if (otherUsername) {
@@ -313,6 +340,35 @@ export function ChatExperience() {
         if (!clientRef.current) return;
         sendChatMessage(clientRef.current, otherUsername, content);
     }, [otherUsername, username]);
+
+    // Broadcast live typing status over WebSockets
+    const handleTyping = useCallback((isTyping: boolean) => {
+        if (!clientRef.current || !otherUsername || otherUsername.toLowerCase() === 'bamzybot') return;
+        const payload = isTyping ? '[TYPING:START]' : '[TYPING:STOP]';
+        sendChatMessage(clientRef.current, otherUsername, payload);
+    }, [otherUsername]);
+
+    // Delete message handler (removes locally + calls backend + broadcasts STOMP delete signal)
+    const handleDelete = useCallback(async (messageId: string) => {
+        // Remove locally from UI
+        setMessages((prev) => prev.filter((m) => m.publicId !== messageId));
+
+        if (otherUsername.toLowerCase() === 'bamzybot') return;
+
+        // Broadcast STOMP delete signal so message vanishes live on partner's screen
+        if (clientRef.current) {
+            sendChatMessage(clientRef.current, otherUsername, `[DELETE:${messageId}]`);
+        }
+
+        // Call backend DELETE API endpoint
+        if (accessToken) {
+            try {
+                await api.post(`/api/messages/${messageId}`, undefined, accessToken);
+            } catch (err) {
+                console.warn('Could not delete message on server:', err);
+            }
+        }
+    }, [accessToken, otherUsername]);
 
     // Real-Time Synchronized Reaction Handler
     const handleReact = useCallback((messageId: string, emoji: string) => {
@@ -412,7 +468,7 @@ export function ChatExperience() {
                             )}
                         </div>
 
-                        {/* Connection indicator + Live Typing Status */}
+                        {/* Connection indicator + Live WhatsApp Typing Status */}
                         <div className="flex items-center gap-1.5 mt-0.5">
                             {partnerIsTyping ? (
                                 <span className="text-[11px] text-pink-200 font-extrabold tracking-wide animate-pulse">
@@ -652,10 +708,11 @@ export function ChatExperience() {
                                 currentUsername={username ?? ''}
                                 reaction={reactionsMap[m.publicId]}
                                 onReact={handleReact}
+                                onDelete={handleDelete}
                             />
                         ))}
 
-                        {/* Partner Typing Bubble */}
+                        {/* WhatsApp-Style Live Partner Typing Bubble */}
                         {partnerIsTyping && (
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}
@@ -664,10 +721,11 @@ export function ChatExperience() {
                                 className="flex items-end gap-2 justify-start my-1"
                             >
                                 <CharacterAvatar variant="warm" size="sm" />
-                                <div className="px-4 py-3 rounded-2xl bg-white/90 backdrop-blur-xl border border-pink-200/70 shadow-md flex gap-1.5 items-center rounded-bl-xs">
-                                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-bounce [animation-delay:-0.3s]" />
-                                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-bounce [animation-delay:-0.15s]" />
-                                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-bounce" />
+                                <div className="px-4 py-2.5 rounded-2xl bg-white/95 backdrop-blur-xl border border-pink-200/70 shadow-md flex gap-1.5 items-center rounded-bl-xs">
+                                    <span className="text-[11px] font-extrabold text-rose-500 mr-1">@{otherUsername}</span>
+                                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-bounce [animation-delay:-0.3s]" />
+                                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-bounce [animation-delay:-0.15s]" />
+                                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-bounce" />
                                 </div>
                             </motion.div>
                         )}
@@ -698,7 +756,7 @@ export function ChatExperience() {
 
                     {/* Bottom Fixed Message Input */}
                     <div className="px-3 sm:px-4 pb-3 pt-1 shrink-0">
-                        <MessageInput onSend={handleSend} disabled={showingIntro} />
+                        <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={showingIntro} />
                     </div>
                 </div>
             </div>
