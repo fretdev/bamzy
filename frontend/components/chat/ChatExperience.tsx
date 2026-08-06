@@ -183,7 +183,7 @@ export function ChatExperience() {
         }
     }, [accessToken, username]);
 
-    // Connect to STOMP and fetch conversation history with active partner
+    // Connect to STOMP with Auto-Reconnect & Heartbeat Pings
     useEffect(() => {
         if (!accessToken || !username || !otherUsername) return;
 
@@ -198,68 +198,79 @@ export function ChatExperience() {
                 try {
                     const client = await connectStomp(
                         accessToken!,
-                        (frame) => {
-                            if (cancelled) return;
-                            const newMessage: MessageResponse = JSON.parse(frame.body);
+                        {
+                            onMessage: (frame) => {
+                                if (cancelled) return;
+                                const newMessage: MessageResponse = JSON.parse(frame.body);
 
-                            // Intercept real-time reaction STOMP events
-                            if (newMessage.content.startsWith('[REACTION:')) {
-                                const match = newMessage.content.match(/^\[REACTION:(.+?):(.+?)\]$/);
-                                if (match) {
-                                    const targetId = match[1];
-                                    const emoji = match[2];
-                                    setReactionsMap((prev) => ({ ...prev, [targetId]: emoji }));
-                                }
-                                return;
-                            }
-
-                            // Intercept real-time delete STOMP events
-                            if (newMessage.content.startsWith('[DELETE:')) {
-                                const match = newMessage.content.match(/^\[DELETE:(.+?)\]$/);
-                                if (match) {
-                                    const targetId = match[1];
-                                    setMessages((prev) => prev.filter((m) => m.publicId !== targetId));
-                                }
-                                return;
-                            }
-
-                            // Intercept real-time live typing STOMP events
-                            if (newMessage.content.startsWith('[TYPING:')) {
-                                // 1. Never show typing feedback for yourself!
-                                if (newMessage.senderUsername && newMessage.senderUsername.trim().toLowerCase() === username?.trim().toLowerCase()) {
+                                // Intercept real-time reaction STOMP events
+                                if (newMessage.content.startsWith('[REACTION:')) {
+                                    const match = newMessage.content.match(/^\[REACTION:(.+?):(.+?)\]$/);
+                                    if (match) {
+                                        const targetId = match[1];
+                                        const emoji = match[2];
+                                        setReactionsMap((prev) => ({ ...prev, [targetId]: emoji }));
+                                    }
                                     return;
                                 }
 
-                                // 2. Only show typing feedback if the signal came from the currently active chat partner!
-                                if (newMessage.senderUsername && newMessage.senderUsername.trim().toLowerCase() === otherUsername.trim().toLowerCase()) {
-                                    if (newMessage.content === '[TYPING:START]') {
-                                        setPartnerIsTyping(true);
-                                        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                                        typingTimeoutRef.current = setTimeout(() => {
-                                            setPartnerIsTyping(false);
-                                        }, 3500);
-                                    } else if (newMessage.content === '[TYPING:STOP]') {
-                                        setPartnerIsTyping(false);
-                                        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                // Intercept real-time delete STOMP events
+                                if (newMessage.content.startsWith('[DELETE:')) {
+                                    const match = newMessage.content.match(/^\[DELETE:(.+?)\]$/);
+                                    if (match) {
+                                        const targetId = match[1];
+                                        setMessages((prev) => prev.filter((m) => m.publicId !== targetId));
                                     }
+                                    return;
                                 }
-                                return;
-                            }
 
-                            setMessages((prev) => {
-                                if (prev.some((m) => m.publicId === newMessage.publicId)) {
+                                // Intercept real-time live typing STOMP events
+                                if (newMessage.content.startsWith('[TYPING:')) {
+                                    // Never show typing feedback for yourself!
+                                    if (newMessage.senderUsername && newMessage.senderUsername.trim().toLowerCase() === username?.trim().toLowerCase()) {
+                                        return;
+                                    }
+
+                                    // Only show typing feedback if signal came from active partner!
+                                    if (newMessage.senderUsername && newMessage.senderUsername.trim().toLowerCase() === otherUsername.trim().toLowerCase()) {
+                                        if (newMessage.content === '[TYPING:START]') {
+                                            setPartnerIsTyping(true);
+                                            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                            typingTimeoutRef.current = setTimeout(() => {
+                                                setPartnerIsTyping(false);
+                                            }, 3500);
+                                        } else if (newMessage.content === '[TYPING:STOP]') {
+                                            setPartnerIsTyping(false);
+                                            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                        }
+                                    }
+                                    return;
+                                }
+
+                                setMessages((prev) => {
+                                    if (prev.some((m) => m.publicId === newMessage.publicId)) {
+                                        return prev;
+                                    }
+                                    return [...prev, newMessage];
+                                });
+
+                                setKnownPartners((prev) => {
+                                    const partner = newMessage.senderUsername === username ? newMessage.receiverUsername : newMessage.senderUsername;
+                                    if (partner && partner.trim().toLowerCase() !== username?.trim().toLowerCase()) {
+                                        return Array.from(new Set([...prev, partner, 'BamzyBot']));
+                                    }
                                     return prev;
+                                });
+                            },
+                            onConnectSuccess: () => {
+                                if (!cancelled) {
+                                    setConnected(true);
+                                    if (otherUsername) syncConversation(otherUsername);
                                 }
-                                return [...prev, newMessage];
-                            });
-
-                            setKnownPartners((prev) => {
-                                const partner = newMessage.senderUsername === username ? newMessage.receiverUsername : newMessage.senderUsername;
-                                if (partner && partner.trim().toLowerCase() !== username?.trim().toLowerCase()) {
-                                    return Array.from(new Set([...prev, partner, 'BamzyBot']));
-                                }
-                                return prev;
-                            });
+                            },
+                            onDisconnect: () => {
+                                if (!cancelled) setConnected(false);
+                            },
                         },
                         username!
                     );
@@ -282,17 +293,25 @@ export function ChatExperience() {
         };
     }, [accessToken, username, otherUsername, syncConversation]);
 
-    // Network Reconnect Listener
+    // Automatic Reconnect & Resync on Tab Focus / Unlocking Screen
     useEffect(() => {
-        function handleOnline() {
-            if (otherUsername) {
-                syncConversation(otherUsername);
-                refreshUserDirectory();
+        function handleVisibilityOrOnline() {
+            if (document.visibilityState === 'visible' || navigator.onLine) {
+                if (otherUsername) {
+                    syncConversation(otherUsername);
+                    refreshUserDirectory();
+                }
+                if (clientRef.current && !clientRef.current.connected) {
+                    clientRef.current.activate();
+                }
             }
         }
-        window.addEventListener('online', handleOnline);
+
+        window.addEventListener('online', handleVisibilityOrOnline);
+        document.addEventListener('visibilitychange', handleVisibilityOrOnline);
         return () => {
-            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('online', handleVisibilityOrOnline);
+            document.removeEventListener('visibilitychange', handleVisibilityOrOnline);
         };
     }, [otherUsername, syncConversation, refreshUserDirectory]);
 
@@ -359,19 +378,16 @@ export function ChatExperience() {
         sendChatMessage(clientRef.current, otherUsername, payload);
     }, [otherUsername]);
 
-    // Delete message handler (removes locally + calls backend + broadcasts STOMP delete signal)
+    // Delete message handler
     const handleDelete = useCallback(async (messageId: string) => {
-        // Remove locally from UI
         setMessages((prev) => prev.filter((m) => m.publicId !== messageId));
 
         if (otherUsername.toLowerCase() === 'bamzybot') return;
 
-        // Broadcast STOMP delete signal so message vanishes live on partner's screen
         if (clientRef.current) {
             sendChatMessage(clientRef.current, otherUsername, `[DELETE:${messageId}]`);
         }
 
-        // Call backend DELETE API endpoint
         if (accessToken) {
             try {
                 await api.post(`/api/messages/${messageId}`, undefined, accessToken);
