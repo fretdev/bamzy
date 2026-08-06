@@ -356,9 +356,19 @@ export function ChatExperience() {
                                 <button
                                     type="button"
                                     onClick={() => setOtherUsername((prev) => (prev === 'BamzyBot' ? ADMIN_USERNAME : 'BamzyBot'))}
-                                    className="px-2 py-0.5 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 text-[10px] font-extrabold text-white transition-all cursor-pointer"
+                                    className="px-2 py-0.5 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 text-[10px] font-extrabold text-white transition-all cursor-pointer whitespace-nowrap"
                                 >
-                                    {otherUsername === 'BamzyBot' ? `💬 Chat with ${ADMIN_USERNAME}` : '🤖 Chat with Bamzy Bot'}
+                                    {otherUsername === 'BamzyBot' ? (
+                                        <>
+                                            <span className="hidden sm:inline">💬 Chat with {ADMIN_USERNAME}</span>
+                                            <span className="sm:hidden">💬 {ADMIN_USERNAME}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="hidden sm:inline">🤖 Chat with Bamzy Bot</span>
+                                            <span className="sm:hidden">🤖 Bamzy Bot</span>
+                                        </>
+                                    )}
                                 </button>
                             )}
                         </div>

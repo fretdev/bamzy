@@ -110,14 +110,17 @@ export function MessageBubble({ message, currentUsername, reaction, onReact }: M
                             initial={{ opacity: 0, scale: 0.8, y: 5 }}
                             animate={{ opacity: 1, scale: 1, y: -34 }}
                             exit={{ opacity: 0, scale: 0.8, y: 5 }}
-                            className={`absolute ${isMine ? 'right-0' : 'left-0'} top-0 z-30 flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-950/95 backdrop-blur-2xl border border-white/30 shadow-xl`}
+                            className={`absolute ${isMine ? 'right-0' : 'left-0'} top-0 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-950/95 backdrop-blur-2xl border border-white/30 shadow-xl`}
                         >
                             {REACTION_OPTIONS.map((emoji) => (
                                 <button
                                     key={emoji}
                                     type="button"
-                                    onClick={() => handleSelectReaction(emoji)}
-                                    className="hover:scale-125 transition-transform text-base p-1 cursor-pointer"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSelectReaction(emoji);
+                                    }}
+                                    className="hover:scale-125 active:scale-125 transition-transform text-lg p-1 cursor-pointer"
                                 >
                                     {emoji}
                                 </button>
@@ -128,12 +131,15 @@ export function MessageBubble({ message, currentUsername, reaction, onReact }: M
 
                 {/* Container holding Bubble + Reaction trigger icon */}
                 <div className="flex items-center gap-1.5 group">
-                    {/* Hover Reaction Trigger Icon for Sent Messages */}
+                    {/* Reaction Trigger Icon for Sent Messages (always visible on mobile touch) */}
                     {isMine && (
                         <button
                             type="button"
-                            onClick={() => setShowReactions((prev) => !prev)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowReactions((prev) => !prev);
+                            }}
+                            className="opacity-75 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
                             title="Add reaction"
                         >
                             😊
@@ -142,8 +148,8 @@ export function MessageBubble({ message, currentUsername, reaction, onReact }: M
 
                     {/* Message Bubble Body */}
                     <div
-                        onDoubleClick={() => setShowReactions((prev) => !prev)}
-                        className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed transition-all shadow-xs relative ${
+                        onClick={() => setShowReactions((prev) => !prev)}
+                        className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed transition-all shadow-xs relative cursor-pointer ${
                             isMine
                                 ? 'bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 text-white rounded-br-xs shadow-md shadow-pink-300/30'
                                 : 'bg-white/95 backdrop-blur-xl text-gray-900 border border-pink-200/70 rounded-bl-xs shadow-sm shadow-pink-100/40'
@@ -182,12 +188,15 @@ export function MessageBubble({ message, currentUsername, reaction, onReact }: M
                         </div>
                     </div>
 
-                    {/* Hover Reaction Trigger Icon for Received Messages */}
+                    {/* Reaction Trigger Icon for Received Messages (always visible on mobile touch) */}
                     {!isMine && (
                         <button
                             type="button"
-                            onClick={() => setShowReactions((prev) => !prev)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowReactions((prev) => !prev);
+                            }}
+                            className="opacity-75 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-xs text-pink-200 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer"
                             title="Add reaction"
                         >
                             😊
