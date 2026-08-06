@@ -123,6 +123,9 @@ export function ChatExperience() {
     const syncConversation = useCallback(async (targetPartner: string) => {
         if (!accessToken || !username || !targetPartner) return;
 
+        setPartnerIsTyping(false);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
         // If chatting with @BamzyBot, load local conversation history
         if (targetPartner.toLowerCase() === 'bamzybot') {
             setMessages([
@@ -222,15 +225,23 @@ export function ChatExperience() {
 
                             // Intercept real-time live typing STOMP events
                             if (newMessage.content.startsWith('[TYPING:')) {
-                                if (newMessage.content === '[TYPING:START]') {
-                                    setPartnerIsTyping(true);
-                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                                    typingTimeoutRef.current = setTimeout(() => {
+                                // 1. Never show typing feedback for yourself!
+                                if (newMessage.senderUsername && newMessage.senderUsername.trim().toLowerCase() === username?.trim().toLowerCase()) {
+                                    return;
+                                }
+
+                                // 2. Only show typing feedback if the signal came from the currently active chat partner!
+                                if (newMessage.senderUsername && newMessage.senderUsername.trim().toLowerCase() === otherUsername.trim().toLowerCase()) {
+                                    if (newMessage.content === '[TYPING:START]') {
+                                        setPartnerIsTyping(true);
+                                        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                        typingTimeoutRef.current = setTimeout(() => {
+                                            setPartnerIsTyping(false);
+                                        }, 3500);
+                                    } else if (newMessage.content === '[TYPING:STOP]') {
                                         setPartnerIsTyping(false);
-                                    }, 3500);
-                                } else if (newMessage.content === '[TYPING:STOP]') {
-                                    setPartnerIsTyping(false);
-                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                    }
                                 }
                                 return;
                             }
