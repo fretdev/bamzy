@@ -1,0 +1,1 @@
+export type CharacterState = 'intro' | 'rejected' | 'closed' | 'accepted';

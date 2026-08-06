@@ -13,7 +13,10 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource(){
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000"));
+        // setAllowedOriginPatterns supports wildcards and works with allowCredentials=true.
+        // Covers localhost:3000, :3001, :3002 etc. — Next.js dev port can shift when one is in use.
+        // In production, replace this with the exact Vercel URL.
+        configuration.setAllowedOriginPatterns(List.of("http://localhost:*"));
         configuration.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

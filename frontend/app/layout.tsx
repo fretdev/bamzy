@@ -15,7 +15,7 @@ export default function RootLayout({
 }>){
   return (
       <html lang="en">
-      <body>
+      <body className="antialiased overflow-hidden">
         <AuthProvider>{children}</AuthProvider>
       </body>
       </html>
