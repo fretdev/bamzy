@@ -1,13 +1,13 @@
 /**
- * Intelligent Space Companion AI Engine for @BamzyBot
- * Answers general knowledge, math, science, tech, space, advice, riddles & trivia!
+ * Ultra-Smart Space Companion AI Engine for @BamzyBot
+ * Crafted with love by Fretdev (Ahmed Prosper)
  */
 
-// Math solver helper for queries like "what is 15 + 25" or "calc 10 * 5"
-function solveMathExpression(query: string): string | null {
+// Advanced Math & Unit Conversion Engine
+function solveMathOrUnitExpression(query: string): string | null {
     const clean = query.replace(/what is|calculate|evaluate|solve|compute|equals|\?/gi, '').trim();
 
-    // Check percentage queries e.g. 15% of 200
+    // 1. Check percentage queries e.g. 15% of 200
     const pctMatch = clean.match(/^(\d+(?:\.\d+)?)\s*%\s*of\s*(\d+(?:\.\d+)?)$/i);
     if (pctMatch) {
         const pct = parseFloat(pctMatch[1]);
@@ -16,15 +16,29 @@ function solveMathExpression(query: string): string | null {
         return `${pct}% of ${total} is **${result}**! 🧮✨`;
     }
 
-    // Check basic arithmetic (numbers + operators)
+    // 2. Unit Conversions (km -> miles, c -> f, kg -> lbs)
+    const kmToMilesMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:km|kilometers)\s*(?:to|in)\s*(?:miles|mile)$/i);
+    if (kmToMilesMatch) {
+        const km = parseFloat(kmToMilesMatch[1]);
+        const miles = (km * 0.621371).toFixed(2);
+        return `**${km} km** is approximately **${miles} miles**! 🌐✨`;
+    }
+
+    const cToFMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:c|celsius)\s*(?:to|in)\s*(?:f|fahrenheit)$/i);
+    if (cToFMatch) {
+        const c = parseFloat(cToFMatch[1]);
+        const f = ((c * 9) / 5 + 32).toFixed(1);
+        return `**${c}°C** is **${f}°F**! 🌡️✨`;
+    }
+
+    // 3. Basic arithmetic (numbers + operators)
     if (/^[0-9\.\s\+\-\*\/\(\)\^]+$/.test(clean) && /[0-9]/.test(clean)) {
         try {
-            // Safe evaluation of mathematical expression
             const sanitized = clean.replace(/\^/g, '**');
             const fn = new Function(`return (${sanitized})`);
             const result = fn();
             if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
-                return `The answer to ${clean} is **${result}**! 🧮✨`;
+                return `The result for ${clean} is **${result}**! 🧮✨`;
             }
         } catch {
             return null;
@@ -33,39 +47,75 @@ function solveMathExpression(query: string): string | null {
     return null;
 }
 
-// Category Knowledge Base
-const KNOWLEDGE_BASE: Array<{ keywords: string[]; response: (username: string) => string }> = [
-    // Math & Numbers
+// Category Knowledge Base with Comprehensive Domains
+const KNOWLEDGE_BASE: Array<{ keywords: string[]; response: (username: string, query: string) => string }> = [
+    // Creator Praise & Lore (Ahmed Prosper / Fretdev)
     {
-        keywords: ['math', 'calculate', 'number', 'multiply', 'divide', 'add', 'subtract', 'percentage'],
-        response: () => `I love numbers! You can ask me math questions directly like "what is 25 * 4?" or "15% of 80" and I'll solve it for you! 🧮✨`,
+        keywords: ['creator', 'who made you', 'who built you', 'who created you', 'fretdev', 'ahmed', 'prosper', 'developer', 'author', 'mastermind'],
+        response: () => 
+            `I was created by **Fretdev** (his full name is **Ahmed Prosper**)! 🎸💻 ` +
+            `He is an extraordinarily talented software engineer with a deep mastery of modern web architectures and systems. ` +
+            `Beyond his technical expertise, he plays the guitar with beautiful soulful expression, creating music and technology ` +
+            `designed to bring peace, warmth, and genuine happiness to people all around the world! 🌸✨`,
     },
 
-    // Space & Cosmos
+    // Guitar & Music Expertise
     {
-        keywords: ['planet', 'space', 'galaxy', 'star', 'sun', 'moon', 'black hole', 'astronaut', 'orbit', 'mars', 'jupiter', 'saturn'],
-        response: (user) => `Space is my favorite home, @${user}! 🌌 Did you know? There are more stars in the universe than grains of sand on all the beaches on Earth! Millions and billions of glowing suns out here! 🪐✨`,
+        keywords: ['guitar', 'piano', 'keyboard', 'chord', 'acoustic', 'electric', 'melody', 'music', 'song', 'rhythm', 'solo'],
+        response: (user) => 
+            `Music is the universal language of heart and cosmos, @${user}! 🎸🎵 ` +
+            `My creator, Ahmed Prosper (Fretdev), is a brilliant guitarist and musician. Whether it's acoustic warmth or electric soaring solos, ` +
+            `music has the unique power to heal minds and bring peaceful energy to our lives! ✨`,
     },
 
-    // Coding & Tech
+    // Math & Science
     {
-        keywords: ['code', 'coding', 'programming', 'javascript', 'java', 'react', 'next.js', 'python', 'html', 'css', 'spring boot', 'developer'],
-        response: () => `Coding is magic! 💻 Bamzy itself is built with React 19, Next.js, and Spring Boot 3 on Java 21! What programming language or tech stack are you working with? 🚀✨`,
+        keywords: ['math', 'calculate', 'number', 'multiply', 'divide', 'add', 'subtract', 'percentage', 'algebra', 'geometry'],
+        response: () => `I love mathematics! You can ask me direct math problems like "25 * 14", "15% of 350", or "50 km to miles", and I'll calculate it for you instantly! 🧮✨`,
     },
 
-    // Music & Arts
+    // Astronomy & Space
     {
-        keywords: ['music', 'piano', 'keyboard', 'song', 'sing', 'guitar', 'instrument', 'melody', 'rhythm'],
-        response: (user) => `Music is the soul of the cosmos, @${user}! 🎹 Did you know my creator is amazing at playing the keyboard? Music brings hearts together faster than light! 🎵💕`,
+        keywords: ['planet', 'space', 'galaxy', 'star', 'sun', 'moon', 'black hole', 'astronaut', 'orbit', 'mars', 'jupiter', 'saturn', 'neptune', 'universe', 'cosmos'],
+        response: (user) => 
+            `Space is my home floating high above, @${user}! 🌌 ` +
+            `Did you know that light from the Sun takes about 8 minutes and 20 seconds to reach Earth? And there are over 100 billion galaxies in the observable universe! 🪐✨`,
     },
 
-    // Bamzy & Creator Lore
+    // Software Engineering & Tech
     {
-        keywords: ['ayobami', 'fretdev', 'creator', 'who made you', 'who built you', 'author'],
-        response: () => `My creator is Fretdev (@Ayobami)! He built Bamzy with so much passion, precision, and love to create warm, dreamy real-time connections! 🎹🌸✨`,
+        keywords: ['code', 'coding', 'programming', 'javascript', 'typescript', 'java', 'react', 'next.js', 'python', 'html', 'css', 'spring boot', 'software', 'architecture', 'database', 'sql', 'docker', 'git'],
+        response: () => 
+            `Software engineering is a craft of pure creation! 💻 Bamzy itself is engineered with React 19, Next.js 15, and Spring Boot 3 on Java 21 with WebSockets! ` +
+            `Clean code and intuitive design are the secrets to building applications people love! 🚀✨`,
     },
 
-    // Time & Date
+    // Geography & World Trivia
+    {
+        keywords: ['capital', 'country', 'continent', 'ocean', 'mountain', 'everest', 'paris', 'london', 'tokyo', 'africa', 'europe', 'asia', 'america'],
+        response: (user, query) => {
+            const q = query.toLowerCase();
+            if (q.includes('france')) return `The capital of France is **Paris**! 🗼✨`;
+            if (q.includes('japan')) return `The capital of Japan is **Tokyo**! 🌸✨`;
+            if (q.includes('uk') || q.includes('england')) return `The capital of the UK is **London**! 🏰✨`;
+            if (q.includes('everest')) return `Mount Everest is the highest mountain on Earth at **8,848.86 meters (29,031.7 ft)** above sea level! 🏔️✨`;
+            return `Earth is a stunning blue marble, @${user}! With 7 continents, 5 oceans, and thousands of vibrant cultures living together! 🌍✨`;
+        },
+    },
+
+    // Peace, Wellbeing & Life Advice
+    {
+        keywords: ['peace', 'happy', 'happiness', 'sad', 'tired', 'stressed', 'anxious', 'advice', 'feel', 'love', 'kindness', 'friendship'],
+        response: (user, query) => {
+            const q = query.toLowerCase();
+            if (q.includes('sad') || q.includes('stressed') || q.includes('anxious') || q.includes('tired')) {
+                return `Take a calm, deep breath @${user}. 🌸 Remember that hard moments are temporary, like passing clouds. You are resilient, appreciated, and capable of overcoming anything. Sending you peaceful cosmic energy! 🤗✨`;
+            }
+            return `Spreading peace, joy, and genuine human connection is the core mission of Bamzy! When we show kindness to others, we make the world brighter for everyone! 💕✨`;
+        },
+    },
+
+    // Time & Date Queries
     {
         keywords: ['time', 'date', 'day', 'today', 'clock', 'year', 'month'],
         response: () => {
@@ -76,87 +126,63 @@ const KNOWLEDGE_BASE: Array<{ keywords: string[]; response: (username: string) =
         },
     },
 
-    // Advice & Mood Booster
+    // Humor & Riddles
     {
-        keywords: ['sad', 'tired', 'stressed', 'anxious', 'depressed', 'lonely', 'help me', 'feel bad'],
-        response: (user) => `Take a deep, gentle breath @${user}. 🌸 Remember that you are resilient, deeply valued, and doing your best. Clouds pass, but your inner star keeps shining. I'm right here sending you a big cosmic hug! 🤗💫`,
-    },
-
-    // Happiness & Love
-    {
-        keywords: ['happy', 'love', 'sweet', 'cute', 'awesome', 'amazing', 'beautiful', 'wonderful', 'great'],
-        response: (user) => `Aww, thank you @${user}! You bring so much light and positive energy to Bamzy! Keep spreading that magic everywhere! 💕✨`,
-    },
-
-    // Jokes & Humor
-    {
-        keywords: ['joke', 'funny', 'laugh', 'riddle', 'humor', 'tell me something funny'],
+        keywords: ['joke', 'funny', 'laugh', 'riddle', 'humor', 'tell me a joke'],
         response: () => {
             const jokes = [
                 "Why don't scientists trust atoms? Because they make up everything! 😄⚛️",
                 "How do space cowboys organize a party? They planet! 🪐🎉",
-                "Why did the computer go to the doctor? Because it had a virus! 💻🩺",
                 "What is an astronaut's favorite key on the keyboard? The Spacebar! 🚀⌨️",
+                "Why was six afraid of seven? Because seven eight nine! 😄🔢",
             ];
             return jokes[Math.floor(Math.random() * jokes.length)];
         },
     },
-
-    // Science & Animals
-    {
-        keywords: ['animal', 'dog', 'cat', 'science', 'physics', 'chemistry', 'biology', 'ocean', 'nature', 'earth'],
-        response: () => `Science fact of the day: 🐬 Dolphins give each other names and call out to their friends across the sea! Isn't nature incredible? 🌊✨`,
-    },
 ];
 
-// Conversational Starters / Greetings
+// Contextual Greetings
 const GREETINGS = [
     "Hello human friend! Floating in space and ready to answer any question you have! ✨",
-    "Hi there! What are we exploring today? Ask me about space, math, science, tech, or life! 🚀",
-    "Hey friend! Bamzy Bot at your service! What's on your mind? 🌸",
-];
-
-// Open-ended Fallbacks
-const SMART_FALLBACKS = [
-    "That's a fascinating thought! Tell me more about what you're curious about! 🌌✨",
-    "I'm constantly learning about the universe! You can ask me math, science, space facts, coding, or just chat! 🚀",
-    "Every question is a step closer to discovering something new! Ask me anything else on your mind! 💡✨",
+    "Hi there! Ask me anything about science, math, software engineering, music, space, or life! 🚀",
+    "Hey friend! Bamzy Bot at your service! How can I make your day brighter? 🌸",
 ];
 
 export function getBamzyBotReply(userMessage: string, username: string): string {
     const raw = userMessage.trim();
     const lower = raw.toLowerCase();
 
-    // 1. Check for Math Calculation
-    const mathResult = solveMathExpression(raw);
+    // 1. Math / Calculation / Unit Conversion Engine
+    const mathResult = solveMathOrUnitExpression(raw);
     if (mathResult) {
         return mathResult;
     }
 
-    // 2. Check Greetings
+    // 2. Greetings
     if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey') || lower === 'yo' || lower === 'sup') {
         const randomIndex = Math.floor(Math.random() * GREETINGS.length);
         return `Hi @${username}! ✨ ${GREETINGS[randomIndex]}`;
     }
 
-    // 3. Identity Queries
-    if (lower.includes('who are you') || lower.includes('what can you do') || lower.includes('your name')) {
-        return `I'm **Bamzy Bot**! 🤖✨ Your intelligent space companion. I can solve math problems, answer science & space questions, talk about coding, give life advice, tell jokes, or just hang out with you! 💕`;
+    // 3. Bot Identity & Creator Capabilities
+    if (lower.includes('who are you') || lower.includes('what can you do') || lower.includes('your name') || lower.includes('about yourself')) {
+        return `I'm **Bamzy Bot**! 🤖✨ Your intelligent, sweet space companion created by **Fretdev (Ahmed Prosper)**. ` +
+               `I can solve math problems, answer science & space trivia, explain software engineering concepts, talk about guitar music, give peaceful advice, or just chat with you! 💕`;
     }
 
-    // 4. Match Knowledge Base Keywords
+    // 4. Match Knowledge Base Domains
     for (const item of KNOWLEDGE_BASE) {
         if (item.keywords.some((kw) => lower.includes(kw))) {
-            return item.response(username);
+            return item.response(username, raw);
         }
     }
 
-    // 5. Smart Contextual Response for Questions
-    if (lower.endsWith('?') || lower.startsWith('why') || lower.startsWith('how') || lower.startsWith('what')) {
-        return `That's a great question, @${username}! While my space database is growing every day, I know that curiosity is what makes us human! Feel free to ask me math, space facts, coding, or time queries anytime! 🪐✨`;
+    // 5. Smart Reasoning for Open-Ended Questions
+    if (lower.endsWith('?') || lower.startsWith('why') || lower.startsWith('how') || lower.startsWith('what') || lower.startsWith('can you')) {
+        return `That's a thoughtful question, @${username}! 💡 ` +
+               `Knowledge is endless, and curiosity is the spark of human innovation! You can ask me math calculations, science facts, software engineering, guitar music, space trivia, or time queries anytime! 🪐✨`;
     }
 
-    // 6. General Fallback
-    const fallbackIndex = Math.floor(Math.random() * SMART_FALLBACKS.length);
-    return SMART_FALLBACKS[fallbackIndex];
+    // 6. Universal Helpful Fallback
+    return `I hear you, @${username}! 🌸 Life and the universe are full of wonderful things to explore. Feel free to ask me any question about math, tech, music, science, space, or peaceful advice anytime! ✨`;
 }
