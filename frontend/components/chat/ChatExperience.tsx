@@ -1,25 +1,22 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Client } from '@stomp/stompjs';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Client } from '@stomp/stompjs';
 import { useAuth } from '@/context/AuthContext';
+import { MessageResponse } from '@/types/chat';
 import { api } from '@/lib/api';
 import { connectStomp, sendChatMessage } from '@/lib/stomp';
-import { MessageResponse } from '@/types/chat';
-import { ChatBackground, ThemePreset } from './ChatBackground';
+import { CharacterAvatar } from './CharacterAvatar';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { ScriptedSequence } from './ScriptedSequence';
-import { CharacterAvatar } from './CharacterAvatar';
-import { ACCENT_COLOR } from '@/lib/home/mood';
+import { ChatBackground } from './ChatBackground';
 import { ADMIN_USERNAME } from '@/lib/config';
-import { getBamzyBotReply } from '@/lib/chat/BamzyBot';
+import { ACCENT_COLOR } from '@/lib/home/mood';
 
-function seenIntroKey(userId: string) {
-    return `bamzy:seenIntro:${userId}`;
-}
+type ThemePreset = 'sunset' | 'galaxy' | 'meadow' | 'golden';
 
 const THEME_LABELS: Record<ThemePreset, { label: string; icon: string }> = {
     sunset: { label: 'Sunset Rose', icon: '🌅' },
@@ -27,6 +24,10 @@ const THEME_LABELS: Record<ThemePreset, { label: string; icon: string }> = {
     meadow: { label: 'Pastel Meadow', icon: '🌿' },
     golden: { label: 'Golden Hour', icon: '✨' },
 };
+
+function seenIntroKey(uid: string | number) {
+    return `bamzy:seenIntro:${uid}`;
+}
 
 export function ChatExperience() {
     const { accessToken, username, userId, logout } = useAuth();
@@ -60,6 +61,8 @@ export function ChatExperience() {
     const [searchQuery, setSearchQuery] = useState('');
     const [showSidebarMobile, setShowSidebarMobile] = useState(false);
     const [isRefreshingUsers, setIsRefreshingUsers] = useState(false);
+    const [isSyncingHistory, setIsSyncingHistory] = useState(false);
+    const [syncError, setSyncError] = useState(false);
 
     // Active chat partner
     const [otherUsername, setOtherUsername] = useState<string>(() => {
@@ -114,6 +117,67 @@ export function ChatExperience() {
         return () => clearInterval(interval);
     }, [refreshUserDirectory]);
 
+    // Sync Conversation History Function with Automatic Retry
+    const syncConversation = useCallback(async (targetPartner: string) => {
+        if (!accessToken || !username || !targetPartner) return;
+
+        // If chatting with @BamzyBot, load local conversation history
+        if (targetPartner.toLowerCase() === 'bamzybot') {
+            setMessages([
+                {
+                    publicId: 'bamzy-welcome',
+                    senderUsername: 'BamzyBot',
+                    receiverUsername: username,
+                    content: `Hello @${username}! ✨ I'm your space companion! Ask me anything, or say hello! 💕`,
+                    status: 'DELIVERED',
+                    createdAt: new Date().toISOString(),
+                },
+            ]);
+            setConnected(true);
+            setSyncError(false);
+            return;
+        }
+
+        setIsSyncingHistory(true);
+        setSyncError(false);
+
+        try {
+            const history = await api.get<MessageResponse[]>(
+                `/api/messages/history/${targetPartner}`,
+                accessToken
+            );
+
+            // Process history messages & extract any saved reaction payloads
+            const cleanHistory: MessageResponse[] = [];
+            if (Array.isArray(history)) {
+                history.forEach((m) => {
+                    if (m.content.startsWith('[REACTION:')) {
+                        const match = m.content.match(/^\[REACTION:(.+?):(.+?)\]$/);
+                        if (match) {
+                            const targetId = match[1];
+                            const emoji = match[2];
+                            setReactionsMap((prev) => ({ ...prev, [targetId]: emoji }));
+                        }
+                    } else {
+                        cleanHistory.push(m);
+                        const partner = m.senderUsername === username ? m.receiverUsername : m.senderUsername;
+                        if (partner && partner.trim().toLowerCase() !== username?.trim().toLowerCase()) {
+                            setKnownPartners((prev) => Array.from(new Set([...prev, partner, 'BamzyBot'])));
+                        }
+                    }
+                });
+            }
+
+            setMessages(cleanHistory);
+            setSyncError(false);
+        } catch (err) {
+            console.warn('Failed to sync conversation history:', err);
+            setSyncError(true);
+        } finally {
+            setIsSyncingHistory(false);
+        }
+    }, [accessToken, username]);
+
     // Connect to STOMP and fetch conversation history with active partner
     useEffect(() => {
         if (!accessToken || !username || !otherUsername) return;
@@ -121,54 +185,12 @@ export function ChatExperience() {
         let cancelled = false;
 
         async function setup() {
-            try {
-                // If chatting with @BamzyBot, load local conversation history
-                if (otherUsername.toLowerCase() === 'bamzybot') {
-                    setMessages([
-                        {
-                            publicId: 'bamzy-welcome',
-                            senderUsername: 'BamzyBot',
-                            receiverUsername: username!,
-                            content: `Hello @${username}! ✨ I'm your space companion! Ask me anything, or say hello! 💕`,
-                            status: 'DELIVERED',
-                            createdAt: new Date().toISOString(),
-                        },
-                    ]);
-                    setConnected(true);
-                    return;
-                }
+            await syncConversation(otherUsername);
+            if (cancelled) return;
 
-                const history = await api.get<MessageResponse[]>(
-                    `/api/messages/history/${otherUsername}`,
-                    accessToken!
-                );
-                if (cancelled) return;
-
-                // Process history messages & extract any saved reaction payloads
-                const cleanHistory: MessageResponse[] = [];
-                if (Array.isArray(history)) {
-                    history.forEach((m) => {
-                        if (m.content.startsWith('[REACTION:')) {
-                            const match = m.content.match(/^\[REACTION:(.+?):(.+?)\]$/);
-                            if (match) {
-                                const targetId = match[1];
-                                const emoji = match[2];
-                                setReactionsMap((prev) => ({ ...prev, [targetId]: emoji }));
-                            }
-                        } else {
-                            cleanHistory.push(m);
-                            const partner = m.senderUsername === username ? m.receiverUsername : m.senderUsername;
-                            if (partner && partner.trim().toLowerCase() !== username?.trim().toLowerCase()) {
-                                setKnownPartners((prev) => Array.from(new Set([...prev, partner, 'BamzyBot'])));
-                            }
-                        }
-                    });
-                }
-
-                setMessages(cleanHistory);
-
-                // Connect or reuse STOMP client
-                if (!clientRef.current) {
+            // Connect or reuse STOMP client
+            if (!clientRef.current || !clientRef.current.connected) {
+                try {
                     const client = await connectStomp(
                         accessToken!,
                         (frame) => {
@@ -186,24 +208,32 @@ export function ChatExperience() {
                                 return;
                             }
 
-                            setMessages((prev) => [...prev, newMessage]);
-
-                            // Track incoming senders
-                            if (newMessage.senderUsername) {
-                                const sender = newMessage.senderUsername;
-                                if (sender.trim().toLowerCase() !== username?.trim().toLowerCase()) {
-                                    setKnownPartners((prev) => Array.from(new Set([...prev, sender, 'BamzyBot'])));
+                            setMessages((prev) => {
+                                if (prev.some((m) => m.publicId === newMessage.publicId)) {
+                                    return prev;
                                 }
-                            }
+                                return [...prev, newMessage];
+                            });
+
+                            setKnownPartners((prev) => {
+                                const partner = newMessage.senderUsername === username ? newMessage.receiverUsername : newMessage.senderUsername;
+                                if (partner && partner.trim().toLowerCase() !== username?.trim().toLowerCase()) {
+                                    return Array.from(new Set([...prev, partner, 'BamzyBot']));
+                                }
+                                return prev;
+                            });
                         },
                         username!
                     );
-                    if (cancelled) { client.deactivate(); return; }
-                    clientRef.current = client;
-                    setConnected(true);
+
+                    if (!cancelled) {
+                        clientRef.current = client;
+                        setConnected(true);
+                    }
+                } catch (err) {
+                    console.error('WebSocket connection failed:', err);
+                    if (!cancelled) setConnected(false);
                 }
-            } catch (err) {
-                console.error("Failed to set up chat connection:", err);
             }
         }
 
@@ -212,57 +242,67 @@ export function ChatExperience() {
         return () => {
             cancelled = true;
         };
-    }, [accessToken, username, otherUsername]);
+    }, [accessToken, username, otherUsername, syncConversation]);
 
-    // Cleanup STOMP connection when leaving page
+    // Network Reconnect & Online Window Focus Listener
     useEffect(() => {
+        function handleOnline() {
+            if (otherUsername) {
+                syncConversation(otherUsername);
+                refreshUserDirectory();
+            }
+        }
+        window.addEventListener('online', handleOnline);
         return () => {
-            clientRef.current?.deactivate();
-            clientRef.current = null;
-            setConnected(false);
+            window.removeEventListener('online', handleOnline);
         };
-    }, []);
+    }, [otherUsername, syncConversation, refreshUserDirectory]);
 
+    // Auto-scroll to bottom whenever messages update
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (!showingIntro) {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
     }, [messages, showingIntro, partnerIsTyping]);
 
     const handleIntroComplete = useCallback(() => {
         if (userId) {
-            localStorage.setItem(seenIntroKey(userId), '1');
-            if (typeof window !== 'undefined') {
-                sessionStorage.removeItem('bamzy:justSignedUp');
-            }
+            localStorage.setItem(seenIntroKey(userId), 'true');
         }
+        sessionStorage.removeItem('bamzy:justSignedUp');
         setShowingIntro(false);
     }, [userId]);
 
     const handleSend = useCallback((content: string) => {
         if (!otherUsername) return;
 
-        // Route to BamzyBot if chatting with @BamzyBot
+        // If chatting with @BamzyBot mascot AI engine
         if (otherUsername.toLowerCase() === 'bamzybot') {
             const userMsg: MessageResponse = {
-                publicId: `user-${Date.now()}`,
+                publicId: `user-bot-${Date.now()}`,
                 senderUsername: username!,
                 receiverUsername: 'BamzyBot',
                 content,
                 status: 'DELIVERED',
                 createdAt: new Date().toISOString(),
             };
+
             setMessages((prev) => [...prev, userMsg]);
             setPartnerIsTyping(true);
 
-            setTimeout(() => {
+            setTimeout(async () => {
+                const { getBamzyBotReply } = await import('@/lib/chat/BamzyBot');
                 const replyText = getBamzyBotReply(content, username!);
+
                 const botMsg: MessageResponse = {
-                    publicId: `bot-${Date.now()}`,
+                    publicId: `bot-reply-${Date.now()}`,
                     senderUsername: 'BamzyBot',
                     receiverUsername: username!,
                     content: replyText,
                     status: 'DELIVERED',
                     createdAt: new Date().toISOString(),
                 };
+
                 setPartnerIsTyping(false);
                 setMessages((prev) => [...prev, botMsg]);
             }, 1200);
@@ -279,7 +319,6 @@ export function ChatExperience() {
         setReactionsMap((prev) => ({ ...prev, [messageId]: emoji }));
 
         if (!clientRef.current || !otherUsername || otherUsername.toLowerCase() === 'bamzybot') return;
-        // Broadcast structured reaction payload over WebSockets
         sendChatMessage(clientRef.current, otherUsername, `[REACTION:${messageId}:${emoji}]`);
     }, [otherUsername]);
 
@@ -319,7 +358,7 @@ export function ChatExperience() {
 
             {/* Deep Glass Header */}
             <motion.header
-                className="relative z-20 flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-rose-600/90 via-pink-600/90 to-purple-600/90 text-white backdrop-blur-2xl border-b border-white/20 shadow-lg shadow-rose-900/15"
+                className="relative z-20 flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-rose-600/90 via-pink-600/90 to-purple-600/90 text-white backdrop-blur-2xl border-b border-white/20 shadow-lg shadow-rose-900/15 shrink-0"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
@@ -378,6 +417,18 @@ export function ChatExperience() {
                             {partnerIsTyping ? (
                                 <span className="text-[11px] text-pink-200 font-extrabold tracking-wide animate-pulse">
                                     @{otherUsername} is typing… ✨
+                                </span>
+                            ) : syncError ? (
+                                <button
+                                    type="button"
+                                    onClick={() => syncConversation(otherUsername)}
+                                    className="text-[11px] text-rose-200 hover:text-white font-extrabold underline flex items-center gap-1 cursor-pointer"
+                                >
+                                    <span>Sync failed (Tap to retry 🔄)</span>
+                                </button>
+                            ) : isSyncingHistory ? (
+                                <span className="text-[11px] text-pink-200 font-semibold animate-pulse">
+                                    Syncing messages… 🌸
                                 </span>
                             ) : (
                                 <span className="text-[11px] text-pink-100 font-semibold tracking-wide">
@@ -451,62 +502,58 @@ export function ChatExperience() {
                 </div>
             </motion.header>
 
-            {/* Main Multi-User Workspace Container */}
+            {/* Central Workspace Container */}
             <div className="relative z-10 flex-1 flex overflow-hidden">
-                {/* Desktop Conversations Sidebar (Visible for Host) */}
+                {/* Desktop Host Conversations Sidebar */}
                 {isHost && (
-                    <aside className="hidden md:flex flex-col w-72 bg-gradient-to-b from-rose-950/85 via-pink-950/85 to-purple-950/85 backdrop-blur-2xl border-r border-white/15 p-3.5 text-white gap-3 z-20 shrink-0">
-                        {/* Sidebar Header & Sleek Refresh Button */}
+                    <aside className="hidden md:flex flex-col w-72 bg-gradient-to-b from-rose-950/40 via-pink-950/40 to-purple-950/40 backdrop-blur-2xl border-r border-white/15 p-3.5 gap-3 text-white shrink-0">
                         <div className="flex items-center justify-between px-1">
-                            <span className="text-xs font-extrabold tracking-wider uppercase text-pink-200 flex items-center gap-1.5">
-                                💬 Users ({filteredPartners.length})
+                            <span className="text-xs font-extrabold tracking-wider uppercase text-pink-200 flex items-center gap-1">
+                                💬 Conversations
                             </span>
-                            
                             <button
                                 type="button"
                                 onClick={refreshUserDirectory}
-                                disabled={isRefreshingUsers}
-                                className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 text-[11px] font-bold text-white flex items-center gap-1 shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-                                title="Refresh registered users list"
+                                className={`text-xs font-bold text-pink-200 hover:text-white flex items-center gap-1 cursor-pointer ${
+                                    isRefreshingUsers ? 'animate-spin' : ''
+                                }`}
+                                title="Sync Registered Users"
                             >
-                                <span>{isRefreshingUsers ? 'Syncing…' : 'Sync'}</span>
+                                🔄
                             </button>
                         </div>
 
-                        {/* Search Pill */}
                         <input
                             type="text"
                             placeholder="Search registered user…"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-pink-300/70 text-xs font-medium focus:outline-none focus:border-white/40 transition-colors"
+                            className="w-full px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-pink-300/70 text-xs font-medium focus:outline-none focus:border-white/50 transition-colors"
                         />
 
-                        {/* Registered Users List */}
-                        <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 pr-0.5 no-scrollbar">
-                            {filteredPartners.map((partner) => {
-                                const isSelected = otherUsername.toLowerCase() === partner.toLowerCase();
-                                const isBot = partner.toLowerCase() === 'bamzybot';
+                        <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 pr-0.5">
+                            {filteredPartners.map((partnerName) => {
+                                const isSelected = partnerName.toLowerCase() === otherUsername.toLowerCase();
+                                const isBot = partnerName.toLowerCase() === 'bamzybot';
 
                                 return (
                                     <button
-                                        key={partner}
+                                        key={partnerName}
                                         type="button"
-                                        onClick={() => setOtherUsername(partner)}
-                                        className={`flex items-center gap-2.5 p-2.5 rounded-2xl transition-all cursor-pointer text-left ${
+                                        onClick={() => setOtherUsername(partnerName)}
+                                        className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all cursor-pointer text-left ${
                                             isSelected
-                                                ? 'bg-gradient-to-r from-pink-500/90 to-rose-500/90 border border-white/40 shadow-md shadow-pink-900/30'
-                                                : 'hover:bg-white/10 border border-transparent'
+                                                ? 'bg-gradient-to-r from-rose-500/90 to-pink-500/90 text-white shadow-md border border-white/30'
+                                                : 'bg-white/5 hover:bg-white/15 text-pink-100 border border-white/10'
                                         }`}
                                     >
                                         <CharacterAvatar
-                                            variant={isBot ? 'warm' : partner.toLowerCase() === 'ayobami' ? 'warm' : 'sassy'}
+                                            variant={isBot ? 'warm' : 'sassy'}
                                             size="sm"
                                         />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-extrabold text-xs text-white truncate flex items-center gap-1">
-                                                <span>@{partner}</span>
-                                                {isBot && <span className="text-[10px] bg-pink-500/80 px-1.5 py-0.2 rounded-full">BOT</span>}
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-extrabold text-xs truncate">
+                                                {isBot ? '🤖 Bamzy Bot' : `@${partnerName}`}
                                             </p>
                                             <span className="text-[10px] text-pink-200/90 font-semibold block mt-0.5">
                                                 {isSelected ? 'Active Conversation ✨' : isBot ? 'Space AI Companion 🤖' : 'Click to open chat'}
@@ -550,30 +597,29 @@ export function ChatExperience() {
                                 className="w-full px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-pink-300/70 text-xs font-medium focus:outline-none"
                             />
 
-                            <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 no-scrollbar">
-                                {filteredPartners.map((partner) => {
-                                    const isSelected = otherUsername.toLowerCase() === partner.toLowerCase();
+                            <div className="flex-1 overflow-y-auto flex flex-col gap-1.5">
+                                {filteredPartners.map((partnerName) => {
+                                    const isSelected = partnerName.toLowerCase() === otherUsername.toLowerCase();
+                                    const isBot = partnerName.toLowerCase() === 'bamzybot';
+
                                     return (
                                         <button
-                                            key={partner}
+                                            key={partnerName}
                                             type="button"
                                             onClick={() => {
-                                                setOtherUsername(partner);
+                                                setOtherUsername(partnerName);
                                                 setShowSidebarMobile(false);
                                             }}
-                                            className={`flex items-center gap-2.5 p-2.5 rounded-2xl transition-all cursor-pointer text-left ${
+                                            className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all text-left ${
                                                 isSelected
-                                                    ? 'bg-rose-600 border border-white/40 shadow-md'
-                                                    : 'hover:bg-white/10'
+                                                    ? 'bg-rose-500 text-white shadow-md border border-white/30'
+                                                    : 'bg-white/10 hover:bg-white/20 text-pink-100'
                                             }`}
                                         >
-                                            <CharacterAvatar
-                                                variant={partner.toLowerCase() === 'ayobami' ? 'warm' : 'sassy'}
-                                                size="sm"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-extrabold text-xs text-white truncate">
-                                                    @{partner}
+                                            <CharacterAvatar variant={isBot ? 'warm' : 'sassy'} size="sm" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-extrabold text-xs truncate">
+                                                    {isBot ? '🤖 Bamzy Bot' : `@${partnerName}`}
                                                 </p>
                                             </div>
                                         </button>
@@ -584,9 +630,10 @@ export function ChatExperience() {
                     )}
                 </AnimatePresence>
 
-                {/* Main Message List & Input Area */}
-                <div className="flex-1 flex flex-col overflow-hidden relative z-10">
-                    <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2">
+                {/* Main Active Chat Area */}
+                <div className="flex-1 flex flex-col overflow-hidden relative">
+                    {/* Scrollable Messages Container */}
+                    <div className="flex-1 overflow-y-auto p-3 sm:p-4 flex flex-col gap-1.5 scroll-smooth overscroll-contain">
                         {/* Scripted intro — plays once on first visit */}
                         <AnimatePresence>
                             {showingIntro && username && (
@@ -641,7 +688,7 @@ export function ChatExperience() {
                                     Start a conversation with @{otherUsername} 💕
                                 </h3>
                                 <p className="text-pink-100/80 text-xs mt-1 max-w-xs font-medium leading-relaxed">
-                                    No messages in this thread yet. Send a message or voice note below to begin chatting!
+                                    No messages in this thread yet. Send a message below to begin chatting!
                                 </p>
                             </motion.div>
                         )}
@@ -649,12 +696,9 @@ export function ChatExperience() {
                         <div ref={bottomRef} />
                     </div>
 
-                    {/* Bottom Input Container */}
-                    <div className="relative z-10 px-3 sm:px-4 py-2.5 sm:py-3 border-t border-white/15 bg-rose-950/25 backdrop-blur-xl">
-                        <MessageInput
-                            onSend={handleSend}
-                            disabled={showingIntro || !connected}
-                        />
+                    {/* Bottom Fixed Message Input */}
+                    <div className="px-3 sm:px-4 pb-3 pt-1 shrink-0">
+                        <MessageInput onSend={handleSend} disabled={showingIntro} />
                     </div>
                 </div>
             </div>
