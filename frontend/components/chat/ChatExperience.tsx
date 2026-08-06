@@ -314,7 +314,7 @@ export function ChatExperience() {
     }
 
     return (
-        <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 w-full chat-viewport overflow-hidden">
             <ChatBackground theme={currentTheme} />
 
             {/* Deep Glass Header */}
