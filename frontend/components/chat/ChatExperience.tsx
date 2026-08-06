@@ -379,17 +379,18 @@ export function ChatExperience() {
                 </div>
 
                 {/* Right Header Actions & Labeled Theme Menu */}
-                <div className="flex items-center gap-2 relative">
+                <div className="flex items-center gap-1.5 sm:gap-2 relative">
                     {/* Clear Labeled Theme Selector Dropdown */}
                     <div className="relative">
                         <button
                             type="button"
                             onClick={() => setShowThemeMenu((prev) => !prev)}
-                            className="px-2.5 sm:px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 text-xs font-extrabold text-white flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                            className="px-2 sm:px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 text-[11px] sm:text-xs font-extrabold text-white flex items-center gap-1 shadow-xs transition-all cursor-pointer whitespace-nowrap"
                             title="Change Atmosphere Theme"
                         >
-                            <span>🎨 Theme: {THEME_LABELS[currentTheme].label}</span>
-                            <span className="text-[10px]">▾</span>
+                            <span className="hidden sm:inline">🎨 Theme: {THEME_LABELS[currentTheme].label}</span>
+                            <span className="sm:hidden">🎨 {THEME_LABELS[currentTheme].label}</span>
+                            <span className="text-[9px] sm:text-[10px]">▾</span>
                         </button>
 
                         <AnimatePresence>
@@ -423,7 +424,7 @@ export function ChatExperience() {
                         </AnimatePresence>
                     </div>
 
-                    <div className="hidden sm:flex flex-col items-end mr-1 text-right">
+                    <div className="hidden md:flex flex-col items-end mr-1 text-right">
                         <span className="text-[10px] font-bold text-pink-200 uppercase tracking-wider">Logged in as</span>
                         <span className="text-xs font-extrabold text-white drop-shadow-xs">{username}</span>
                     </div>
@@ -432,7 +433,7 @@ export function ChatExperience() {
                         whileHover={{ scale: 1.04 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={handleLeaveChat}
-                        className="text-xs font-bold text-white bg-white/20 hover:bg-white/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/30 shadow-sm flex items-center gap-1 transition-all cursor-pointer"
+                        className="text-[11px] sm:text-xs font-bold text-white bg-white/20 hover:bg-white/30 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-white/30 shadow-sm flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
                         title="Leave chat & log out"
                     >
                         <span>Leave</span>

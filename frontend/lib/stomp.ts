@@ -1,7 +1,15 @@
 import { Client, IMessage } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL as string;
+function getWebSocketUrl(): string {
+    const customWs = process.env.NEXT_PUBLIC_WS_URL;
+    if (customWs && customWs.trim()) {
+        return customWs.trim();
+    }
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    const cleanUrl = apiUrl.replace(/\/$/, '');
+    return `${cleanUrl}/ws`;
+}
 
 export function connectStomp(
     token: string,
@@ -9,8 +17,11 @@ export function connectStomp(
     username: string
 ): Promise<Client> {
     return new Promise((resolve, reject) => {
+        const wsUrl = getWebSocketUrl();
+        console.log("Connecting STOMP WebSocket to:", wsUrl);
+
         const client = new Client({
-            webSocketFactory: () => new SockJS(WS_URL),
+            webSocketFactory: () => new SockJS(wsUrl),
             connectHeaders: {
                 Authorization: `Bearer ${token}`,
             },
