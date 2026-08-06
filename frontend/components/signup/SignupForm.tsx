@@ -11,13 +11,11 @@ interface SignupFormProps {
     onSuccess: () => void;
 }
 
-function fieldAnim(delay: number) {
-    return {
-        initial: { opacity: 0, y: 24 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as [number, number, number, number], delay },
-    };
-}
+const inputBase =
+    'w-full px-3.5 py-2.5 rounded-xl bg-white/85 backdrop-blur-sm border border-pink-100/90 ' +
+    'text-gray-800 placeholder-pink-300 font-medium text-xs md:text-sm ' +
+    'focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:border-transparent ' +
+    'transition-colors duration-150 shadow-xs';
 
 export function SignupForm({ onSuccess }: SignupFormProps) {
     const [username, setUsername] = useState('');
@@ -48,7 +46,6 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
         setLoading(true);
 
         const cleanUsername = username.trim();
-        // Generate valid email format required by backend RegisterRequest validation
         const generatedEmail = `${cleanUsername.toLowerCase().replace(/[^a-z0-9]/g, '')}@bamzy.app`;
 
         try {
@@ -57,7 +54,6 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
                 email: generatedEmail,
                 password,
             });
-            // Register succeeded — mark session as new signup and log in
             if (typeof window !== 'undefined') {
                 sessionStorage.setItem('bamzy:justSignedUp', 'true');
             }
@@ -83,16 +79,10 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
         }
     }
 
-    const inputBase =
-        'w-full px-3.5 py-2.5 rounded-xl bg-white/85 backdrop-blur-sm border border-pink-100/90 ' +
-        'text-gray-800 placeholder-pink-300 font-medium text-xs md:text-sm ' +
-        'focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:border-transparent ' +
-        'transition-all duration-200 shadow-xs';
-
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 w-full">
             {/* Username */}
-            <motion.div {...fieldAnim(0.1)}>
+            <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">
                     Username
                 </label>
@@ -106,10 +96,10 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
                     className={inputBase}
                     disabled={loading}
                 />
-            </motion.div>
+            </div>
 
             {/* Password */}
-            <motion.div {...fieldAnim(0.2)}>
+            <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">
                     Password (min 8 chars)
                 </label>
@@ -123,10 +113,10 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
                     className={inputBase}
                     disabled={loading}
                 />
-            </motion.div>
+            </div>
 
             {/* Confirm Password */}
-            <motion.div {...fieldAnim(0.3)}>
+            <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">
                     Confirm Password
                 </label>
@@ -140,7 +130,7 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
                     className={inputBase}
                     disabled={loading}
                 />
-            </motion.div>
+            </div>
 
             {/* Error Message */}
             <AnimatePresence>
@@ -149,6 +139,7 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.15 }}
                         className="text-xs font-semibold text-rose-500 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-center"
                     >
                         {error}
@@ -157,14 +148,12 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
             </AnimatePresence>
 
             {/* Submit Button */}
-            <motion.div {...fieldAnim(0.4)} className="mt-1">
-                <motion.button
+            <div className="mt-1">
+                <button
                     id="signup-submit"
                     type="submit"
                     disabled={loading}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full py-3 px-4 rounded-xl text-white font-bold text-sm shadow-md shadow-pink-300/40 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    className="w-full py-3 px-4 rounded-xl text-white font-bold text-sm shadow-md shadow-pink-300/40 transition-colors duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                     style={{ background: `linear-gradient(135deg, ${ACCENT_COLOR}, #FB7185)` }}
                 >
                     {loading ? (
@@ -175,15 +164,15 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
                     ) : (
                         <span>Sign Up ✨</span>
                     )}
-                </motion.button>
-            </motion.div>
+                </button>
+            </div>
 
-            <motion.p {...fieldAnim(0.5)} className="text-center text-xs text-gray-500 mt-1">
+            <p className="text-center text-xs text-gray-500 mt-1">
                 Already have an account?{' '}
                 <a href="/login" style={{ color: ACCENT_COLOR }} className="font-bold underline hover:opacity-85">
                     Log in
                 </a>
-            </motion.p>
+            </p>
         </form>
     );
 }

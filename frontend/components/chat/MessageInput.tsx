@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface MessageInputProps {
@@ -44,6 +44,7 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
 
     const inputRef = useRef<HTMLInputElement>(null);
     const pickerRef = useRef<HTMLDivElement>(null);
+    const isTypingRef = useRef(false);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Close emoji picker when clicking outside
@@ -61,18 +62,23 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
         };
     }, [showEmojiPicker]);
 
-    function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setContent(val);
 
         if (onTyping) {
-            onTyping(true);
+            if (!isTypingRef.current && val.trim().length > 0) {
+                isTypingRef.current = true;
+                onTyping(true);
+            }
+
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = setTimeout(() => {
+                isTypingRef.current = false;
                 onTyping(false);
             }, 2500);
         }
-    }
+    }, [onTyping]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -80,6 +86,8 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
         onSend(content.trim());
         setContent('');
         setShowEmojiPicker(false);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        isTypingRef.current = false;
         if (onTyping) onTyping(false);
     }
 
@@ -88,7 +96,7 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
         inputRef.current?.focus();
     }
 
-    const canSend = content.trim() && !disabled;
+    const canSend = Boolean(content.trim()) && !disabled;
 
     return (
         <div className="relative max-w-4xl mx-auto" ref={pickerRef}>
@@ -99,7 +107,7 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
                         initial={{ opacity: 0, y: 12, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 12, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
+                        transition={{ duration: 0.15 }}
                         className="absolute bottom-16 left-0 sm:left-4 z-50 w-full sm:w-80 bg-gradient-to-br from-rose-950/90 via-pink-950/90 to-purple-950/90 backdrop-blur-2xl border border-white/25 shadow-2xl shadow-black/50 rounded-3xl p-3.5 flex flex-col gap-2.5 overflow-hidden text-white"
                     >
                         {/* Header category tabs */}
@@ -109,7 +117,7 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
                                     key={cat.name}
                                     type="button"
                                     onClick={() => setActiveCategory(idx)}
-                                    className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full whitespace-nowrap transition-all ${
+                                    className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full whitespace-nowrap transition-colors ${
                                         activeCategory === idx
                                             ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-xs'
                                             : 'text-pink-200/80 hover:bg-white/15 hover:text-white'
@@ -127,7 +135,7 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
                                     key={idx}
                                     type="button"
                                     onClick={() => handleAddEmoji(emoji)}
-                                    className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/20 hover:scale-125 transition-all cursor-pointer"
+                                    className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/20 hover:scale-125 transition-transform cursor-pointer"
                                 >
                                     {emoji}
                                 </button>
@@ -138,19 +146,16 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
             </AnimatePresence>
 
             {/* Translucent Deep Rose Glass Input Box */}
-            <motion.form
+            <form
                 onSubmit={handleSubmit}
-                className="flex items-center gap-2 sm:gap-3 px-3.5 sm:px-4 py-2.5 rounded-full bg-gradient-to-r from-rose-900/60 via-pink-900/60 to-purple-900/60 backdrop-blur-2xl border border-white/30 text-white shadow-xl shadow-rose-950/30 focus-within:border-white/60 focus-within:ring-2 focus-within:ring-pink-400/40 transition-all"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-2 sm:gap-3 px-3.5 sm:px-4 py-2.5 rounded-full bg-gradient-to-r from-rose-900/60 via-pink-900/60 to-purple-900/60 backdrop-blur-2xl border border-white/30 text-white shadow-xl shadow-rose-950/30 focus-within:border-white/60 focus-within:ring-2 focus-within:ring-pink-400/40"
             >
                 {/* Emoji Trigger Button */}
                 <button
                     type="button"
                     disabled={disabled}
                     onClick={() => setShowEmojiPicker((prev) => !prev)}
-                    className="text-pink-300 hover:text-white hover:scale-110 text-lg sm:text-xl transition-all cursor-pointer disabled:opacity-50 shrink-0 drop-shadow-xs"
+                    className="text-pink-300 hover:text-white hover:scale-110 text-lg sm:text-xl transition-transform cursor-pointer disabled:opacity-50 shrink-0 drop-shadow-xs"
                     title="Choose emoji"
                 >
                     😊
@@ -164,17 +169,15 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
                     onChange={handleInputChange}
                     disabled={disabled}
                     placeholder={disabled ? 'Bamzy is speaking… ✨' : 'Type a message… 🌸'}
-                    className="flex-1 bg-transparent text-white placeholder-pink-200/70 text-xs sm:text-sm font-medium focus:outline-none disabled:opacity-60 transition-opacity"
+                    className="flex-1 bg-transparent text-white placeholder-pink-200/70 text-xs sm:text-sm font-medium focus:outline-none disabled:opacity-60 transition-colors duration-150"
                 />
 
                 {/* Glowing Send Button */}
-                <motion.button
+                <button
                     id="chat-send"
                     type="submit"
                     disabled={!canSend}
-                    whileHover={canSend ? { scale: 1.08 } : {}}
-                    whileTap={canSend ? { scale: 0.92 } : {}}
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-white shadow-md transition-all duration-200 cursor-pointer shrink-0 ${
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-white shadow-md transition-colors duration-150 cursor-pointer shrink-0 ${
                         canSend
                             ? 'bg-gradient-to-r from-pink-400 via-rose-500 to-purple-500 shadow-pink-500/50 hover:shadow-pink-400/70'
                             : 'bg-white/10 text-pink-200/40 cursor-not-allowed'
@@ -188,8 +191,8 @@ export function MessageInput({ onSend, onTyping, disabled = false }: MessageInpu
                     >
                         <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
                     </svg>
-                </motion.button>
-            </motion.form>
+                </button>
+            </form>
         </div>
     );
 }
