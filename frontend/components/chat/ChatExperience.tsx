@@ -247,12 +247,30 @@ export function ChatExperience() {
                                     return;
                                 }
 
-                                setMessages((prev) => {
-                                    if (prev.some((m) => m.publicId === newMessage.publicId)) {
-                                        return prev;
-                                    }
-                                    return [...prev, newMessage];
-                                });
+                                // Thread isolation check: Only append to UI if message belongs to current active thread
+                                const isForCurrentThread =
+                                    (newMessage.senderUsername?.trim().toLowerCase() === username?.trim().toLowerCase() &&
+                                     newMessage.receiverUsername?.trim().toLowerCase() === otherUsername.trim().toLowerCase()) ||
+                                    (newMessage.senderUsername?.trim().toLowerCase() === otherUsername.trim().toLowerCase() &&
+                                     newMessage.receiverUsername?.trim().toLowerCase() === username?.trim().toLowerCase());
+
+                                if (isForCurrentThread) {
+                                    setMessages((prev) => {
+                                        // Replace optimistic temp message with confirmed server message
+                                        const tempIndex = prev.findIndex(
+                                            (m) => m.publicId.startsWith('temp-') && m.senderUsername === newMessage.senderUsername && m.content === newMessage.content
+                                        );
+                                        if (tempIndex !== -1) {
+                                            const updated = [...prev];
+                                            updated[tempIndex] = newMessage;
+                                            return updated;
+                                        }
+                                        if (prev.some((m) => m.publicId === newMessage.publicId)) {
+                                            return prev;
+                                        }
+                                        return [...prev, newMessage];
+                                    });
+                                }
 
                                 setKnownPartners((prev) => {
                                     const partner = newMessage.senderUsername === username ? newMessage.receiverUsername : newMessage.senderUsername;
@@ -367,8 +385,22 @@ export function ChatExperience() {
             return;
         }
 
-        if (!clientRef.current) return;
-        sendChatMessage(clientRef.current, otherUsername, content);
+        const tempId = `temp-${Date.now()}`;
+        const optimisticMsg: MessageResponse = {
+            publicId: tempId,
+            senderUsername: username!,
+            receiverUsername: otherUsername,
+            content,
+            status: 'DELIVERED',
+            createdAt: new Date().toISOString(),
+        };
+
+        // Immediately reflect sent message on screen (0ms latency!)
+        setMessages((prev) => [...prev, optimisticMsg]);
+
+        if (clientRef.current) {
+            sendChatMessage(clientRef.current, otherUsername, content);
+        }
     }, [otherUsername, username]);
 
     // Broadcast live typing status over WebSockets
