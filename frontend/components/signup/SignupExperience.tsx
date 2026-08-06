@@ -82,7 +82,7 @@ export function SignupExperience() {
                         {/* Speech bubble */}
                         <div className="flex justify-center pt-1">
                             <DialogueBox
-                                lines={['Tell who you are, human. ✨']}
+                                lines={['Tell me who you are, human. ✨']}
                                 typingDelayMs={500}
                             >
                                 <div className="flex justify-center mt-0.5">
