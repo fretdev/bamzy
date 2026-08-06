@@ -43,17 +43,18 @@ export function ChatExperience() {
 
     // List of all registered partners discovered from DB, persisted in localStorage
     const [knownPartners, setKnownPartners] = useState<string[]>(() => {
-        if (typeof window === 'undefined') return ['Ayobami', 'BamzyBot'];
+        if (typeof window === 'undefined') return ['BamzyBot'];
         const cached = localStorage.getItem('bamzy:known_partners');
         if (cached) {
             try {
                 const parsed = JSON.parse(cached);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    return Array.from(new Set([...parsed, 'BamzyBot']));
+                    const cleaned = parsed.filter((p: string) => p && p.toLowerCase() !== 'ayobami');
+                    if (cleaned.length > 0) return Array.from(new Set([...cleaned, 'BamzyBot']));
                 }
             } catch {}
         }
-        return ['Ayobami', 'BamzyBot'];
+        return ['BamzyBot'];
     });
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -64,7 +65,7 @@ export function ChatExperience() {
     const [otherUsername, setOtherUsername] = useState<string>(() => {
         if (!username) return ADMIN_USERNAME;
         const lower = username.trim().toLowerCase();
-        if (lower === ADMIN_USERNAME.toLowerCase()) return 'Ayobami';
+        if (lower === ADMIN_USERNAME.toLowerCase()) return 'BamzyBot';
         return ADMIN_USERNAME;
     });
 
@@ -93,13 +94,11 @@ export function ChatExperience() {
                     .map((u) => u.username)
                     .filter((n) => n && n.trim().toLowerCase() !== username?.trim().toLowerCase());
 
-                setKnownPartners((prev) => {
-                    const combined = Array.from(new Set([...prev, ...names, 'BamzyBot']));
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('bamzy:known_partners', JSON.stringify(combined));
-                    }
-                    return combined;
-                });
+                const updatedList = Array.from(new Set([...names, 'BamzyBot']));
+                setKnownPartners(updatedList);
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('bamzy:known_partners', JSON.stringify(updatedList));
+                }
             }
         } catch (e) {
             console.warn('Could not fetch user directory from database:', e);
